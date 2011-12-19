@@ -13,92 +13,6 @@ class ProcessListener(object):
     def on_finished(self, proc):
         pass
 
-# class RakeTaskListCommand(sublime_plugin.EventListener, ProcessListener):
-#     def __init__(self):
-#         self.rake_tasks_initialized = False
-#         self.menu_file = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'Main.sublime-menu')
-        
-#         print "Collecting rake tasks..."
-
-#         # Change to the working dir, rather than spawning the process with it,
-#         # so that emitted working dir relative path names make sense    
-#         os.chdir(view.window().folders()[0])
-
-#         env = {}
-#         if view.window().active_view():
-#             user_env = view.window().active_view().settings().get('build_env')
-#             if user_env:
-#                 env.update(user_env)
-
-#         err_type = OSError
-#         if os.name == "nt":
-#             err_type = WindowsError
-
-#         try:
-#             self.proc = AsyncProcess(["rake", "-T"], env, self)
-#         except err_type as e:
-#             print "\n[Finished]"
-        
-#         self.rake_tasks_initialized = True
-
-    # def on_load(self, view):
-    #     if view.window() and not self.rake_tasks_initialized:
-            
-
-    # def run(self):
-    #     print self.tasks
-    #     self.window.show_quick_panel(self.tasks, self.on_select)
-    
-    # def on_select(panel, index):
-    #     print "Got ", self.tasks[index]
-    
-    # def extract_tasks(self, proc, data):
-    #     self.tasks = []
-    #     # Normalize newlines, Sublime Text always uses a single \n separator
-    #     # in memory.
-    #     lines = data.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-    #     for line in lines:
-    #         match = re.search(r"^rake ([\w\.:_]+)\s", line)
-    #         if match:
-    #         	task = match.group(1)
-    #             self.tasks.append(task)
-    #             print task
-
-    # def finish(self, proc):
-    #     print "Done collecting Rake tasks!"
-    #     print "<--------------------------"
-    #     for task in self.tasks:
-    #         print "- " + task
-    #     print "-------------------------->"
-        
-        # print "Writing new Rake menu: " + self.menu_file
-        # with open(self.menu_file, 'w') as fw:
-        #     fw.write('[\n')
-        #     fw.write('    {\n')
-        #     fw.write('        "caption": "Rake",\n')
-        #     fw.write('        "id": "rake",\n')
-        #     fw.write('        "mnemonic": "R",\n')
-        #     fw.write('        "children":\n')
-        #     fw.write('        [\n')
-        #     for idx, task in enumerate(self.tasks):
-        #         fw.write('            { "caption": "' + task + '",\n')
-        #         fw.write('                "command": "rake",\n')
-        #         fw.write('                "args": {\n')
-        #         if idx < (len(self.tasks)-1):
-        #             fw.write('                    "tasks": ["' + task + '"] } },\n')
-        #         else:
-        #             fw.write('                    "tasks": ["' + task + '"] } }\n')
-        #     fw.write('        ]\n')
-        #     fw.write('    }\n')
-        #     fw.write(']\n')
-
-    # def on_data(self, proc, data):
-    #     sublime.set_timeout(functools.partial(self.extract_tasks, proc, data), 0)
-
-    # def on_finished(self, proc):
-    #     sublime.set_timeout(functools.partial(self.finish, proc), 0)
-
-
 # Encapsulates subprocess.Popen, forwarding stdout to a supplied
 # ProcessListener (on a separate thread)
 class AsyncProcess(object):
@@ -174,9 +88,9 @@ class AsyncProcess(object):
                 self.proc.stderr.close()
                 break
 
-class RakeCommand(sublime_plugin.WindowCommand, ProcessListener):
+class ExecutableCommand(sublime_plugin.WindowCommand, ProcessListener):
 
-    def run(self, tasks = [], options = [], prefix = [], file_regex = "^(...*?):", line_regex = "^...*?:([0-9]*)", working_dir = "",
+    def run(self, launch = 'rake', tasks = [], options = [], prefix = [], file_regex = "^(...*?):", line_regex = "^...*?:([0-9]*)", working_dir = "",
             encoding = "utf-8", env = {}, quiet = False, kill = False,
             # Catches "path" and "shell"
             **kwargs):
@@ -222,10 +136,7 @@ class RakeCommand(sublime_plugin.WindowCommand, ProcessListener):
         # Build up the command line
         cmd = []
         cmd += prefix
-        if os.name == "nt":
-            cmd += ["rake.bat"]
-        else:
-            cmd += ["rake"]
+        cmd += [launch]
         cmd += [flattened_tasks] + options
 
         self.append_data(None, "> " + " ".join(cmd) + "\n")
@@ -306,3 +217,66 @@ class RakeCommand(sublime_plugin.WindowCommand, ProcessListener):
 
     def on_finished(self, proc):
         sublime.set_timeout(functools.partial(self.finish, proc), 0)
+
+class RakeCommand(ExecutableCommand):
+  def run(self, launch = 'rake', tasks = [], options = [], prefix = [], file_regex = "^(...*?):", line_regex = "^...*?:([0-9]*)", working_dir = "",
+            encoding = "utf-8", env = {}, quiet = False, kill = False,
+            # Catches "path" and "shell"
+            **kwargs):
+    super(RakeCommand, self).run(launch, tasks, options, prefix, file_regex, line_regex, working_dir, encoding, env, quiet, kill, **kwargs)
+
+class CustomRakeCommand(RakeCommand):
+  def run(self, launch = 'rake', tasks = [], options = [], prefix = [], file_regex = "^(...*?):", line_regex = "^...*?:([0-9]*)", working_dir = "",
+            encoding = "utf-8", env = {}, quiet = False, kill = False,
+            # Catches "path" and "shell"
+            **kwargs):
+    self.launch = launch
+    self.options = options
+    self.prefix = prefix
+    self.file_regex = file_regex
+    self.line_regex = line_regex
+    self.working_dir = working_dir
+    self.encoding = encoding
+    self.env = env
+    self.quiet = quiet
+    self.kill = kill
+    self.kwargs = kwargs
+
+    self.window.show_input_panel("Tasks",'',self.custom_execute,None,None)
+
+  def custom_execute(self, args):
+    self.tasks = args.split(' ')
+    self.execute()
+
+  def execute(self):
+    super(CustomRakeCommand, self).run(self.launch, self.tasks, self.options, self.prefix, self.file_regex, self.line_regex, self.working_dir, self.encoding, self.env, self.quiet, self.kill, **self.kwargs)
+
+class RailsCommand(ExecutableCommand):
+  def run(self, launch = 'rails', tasks = [], options = [], prefix = [], file_regex = "^(...*?):", line_regex = "^...*?:([0-9]*)", working_dir = "",
+            encoding = "utf-8", env = {}, quiet = False, kill = False,
+            # Catches "path" and "shell"
+            **kwargs):
+    self.launch = launch
+    self.tasks=tasks
+    self.options = options
+    self.prefix = prefix
+    self.file_regex = file_regex
+    self.line_regex = line_regex
+    self.working_dir = working_dir
+    self.encoding = encoding
+    self.env = env
+    self.quiet = quiet
+    self.kill = kill
+    self.kwargs = kwargs
+
+    if tasks[0] == 'generate':
+      self.window.show_input_panel("Generate",'',self.custom_execute,None,None)
+    else:
+      self.execute()
+
+  def custom_execute(self, args):
+    self.tasks += args.split(' ')
+    self.execute()
+
+  def execute(self):
+    super(RailsCommand, self).run(self.launch, self.tasks, self.options, self.prefix, self.file_regex, self.line_regex, self.working_dir, self.encoding, self.env, self.quiet, self.kill, **self.kwargs)

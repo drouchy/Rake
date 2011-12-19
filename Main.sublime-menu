@@ -1,0 +1,33 @@
+ [
+     {
+        "id": "tools",
+        "children":
+        [{
+            "caption": "Rails",
+            "id": "Rails",
+            "children":
+            [
+                {
+                  "command": "rake",
+                  "caption": "Migrate DB",
+                  "args" :  {"tasks": ["db:migrate"], "prefix" : ["bundle", "exec"] }
+                },
+                {
+                  "command": "rake",
+                  "caption": "DB Seed",
+                  "args" :  {"tasks": ["db:seed"], "prefix" : ["bundle", "exec"] }
+                },
+                {
+                  "command": "rails",
+                  "caption": "Generate",
+                  "args" :  {"tasks": ["generate"], "prefix" : ["bundle", "exec"] }
+                },
+                {
+                  "command": "custom_rake",
+                  "caption": "Run rake tasks",
+                  "args" :  {"prefix" : ["bundle", "exec"] }
+                }
+            ]
+        }]
+    }
+]
